@@ -51,12 +51,3 @@ Execute o programa compilado para gerar e visualizar o labirinto:
 ```
 
 ```
-
-### Explicação dos principais pontos:
-
-- **Título e Descrição**: .
-- **Funcionalidades**: .
-- **Requisitos**: .
-- **Instalação**: .
-- **Uso**: .
-- **Contribuição**: .
