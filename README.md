@@ -49,5 +49,3 @@ Execute o programa compilado para gerar e visualizar o labirinto:
 ```bash
 ./labirinto
 ```
-
-```
