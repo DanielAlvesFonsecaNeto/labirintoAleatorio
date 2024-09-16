@@ -1,8 +1,10 @@
 #include <SDL2/SDL.h>
 #include <iostream>
 #include <vector>
-#include <utility>
 #include <stack>
+#include <utility>   // para pair
+#include <algorithm> // para shuffle
+#include <random>    // para random_device e mt19937
 
 /* ---------------------------------CORES----------------------------------- */
 
@@ -21,12 +23,21 @@ SDL_Color cor_caminho = {130, 130, 160, 255}; // quase branco cinza azulado
 const int Janela_L = 720;
 const int Janela_A = 720;
 
-// quantas celulas ^2 tem a matriz, nxn
+// quantas celulas ^2 tem a matriz, nxn  // padrao = 23
 const int dim_matriz = 23;
+
+// quantos porcentos a parede em relação ao tamanho da celula
+const float espessura_parede = 0.05;
+
+// gerando sementes aleatorias para o suffle
+std::random_device randow_device;
+std::mt19937 gerador(randow_device());
 
 // celula de uma matriz , tem informações como direção de caminho etc..
 struct labirinto_celula
 {
+    // verificação se ja foi explorado, apenas usada para algumas animação futura talvez mas nao afeta a DFS
+    bool explorado = false;
     // verificação se ja foi visitado para poder entrar na pilha ou não
     bool visitado = false;
     // cordenadas caso precise
@@ -43,9 +54,13 @@ struct labirinto_celula
 };
 
 // matriz do labirinto, essa é a estrura que vai ser processada e armazenar o labirinto
-std::vector<std::vector<labirinto_celula>> matriz_labirinto;
+std::vector<std::vector<labirinto_celula>> matriz_labirinto(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^VARIAVEIS E ESTRTURAS GLOBAIS^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+
+
+/* ---------------------------------FUNÇÕES PARA DESENHAR COISAS NA TELA----------------------------------- */
 
 /*
 Função que desenha malha de quadrados na tela, seria o labirinto sem caminho, apenas paredes
@@ -58,8 +73,8 @@ void desenharQuadradoComOutroDentro(SDL_Renderer *renderizador, int offsetX, int
     SDL_SetRenderDrawColor(renderizador, cor_parede.r, cor_parede.g, cor_parede.b, cor_parede.a); // verde
     SDL_RenderFillRect(renderizador, &quadradoMaior);
 
-    // Calcula o tamanho do quadrado menor (80% do tamanho do quadrado maior)
-    int tamanhoMenor = tamanho * 0.8;
+    // Calcula o tamanho do quadrado menor
+    int tamanhoMenor = tamanho * (1 - (espessura_parede * 2));
 
     // Calcula a posição para centralizar o quadrado menor no quadrado maior
     int xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2;
@@ -89,6 +104,17 @@ void desenharGrids(SDL_Renderer *renderizador, int rect_size, int offsetX, int o
     SDL_RenderPresent(renderizador);
 }
 
+void desenharQuebraParede(){
+    
+}
+
+
+/* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^FUNÇÕES PARA DESENHAR COISAS NA TELA^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+
+
+/* ---------------------------------CRIAR LABIRINTO----------------------------------- */
+
 /* função que constroi o labirinto e tambem desenha */
 void construir_Labirinto()
 {
@@ -99,14 +125,12 @@ void construir_Labirinto()
 
     std::stack<std::pair<int, int>> pilha;
     pilha.push({0, 0}); // começa a geração do labirinto a partir da celula 0,0 , a primeira
-    matriz_labirinto[0][0].visitado = true;
-    matriz_labirinto[0][0].cordenadas = {0, 0};
+    matriz_labirinto[0][0].explorado = true;
     matriz_labirinto[0][0].norte = 1;               // seria o caminho pra saida do labirinto
-    matriz_labirinto[0][0].pai_cordenadas = {0, 0}; // ele mesmo
+    matriz_labirinto[0][0].pai_cordenadas = {-1, 0}; // ele mesmo
 
     while (!pilha.empty() && continuar_loop)
     {
-
         // desempilha da pilha, vamos trabalhar com o atual
         std::pair<int, int> atual = pilha.top();
         pilha.pop();
@@ -115,7 +139,26 @@ void construir_Labirinto()
         if (matriz_labirinto[atual.first][atual.second].visitado == false)
         {
 
-            // definindo direções possiveis
+            std::cout<<atual.first<<' '<<atual.second<<'\n';
+
+            // marca esse atual como visitado para ele não poder ser visitado de novo
+            matriz_labirinto[atual.first][atual.second].visitado = true;
+
+            // marca cordenadas do atual como cordenadas do prorio atual
+            matriz_labirinto[atual.first][atual.second].cordenadas = atual;
+
+            // referencia do pai
+            std::pair<int, int> pai_do_atual = matriz_labirinto[atual.first][atual.second].pai_cordenadas;
+            // coloca o pai na lista de ligacoes
+            if(atual.first != 0 || atual.second != 0){ // caso não seja o {0,0}
+                matriz_labirinto[atual.first][atual.second].ligacoes.push_back(pai_do_atual);
+                // coloca o atual na lista de ligacoes do pai
+                matriz_labirinto[pai_do_atual.first][pai_do_atual.second].ligacoes.push_back(atual);
+            }
+
+            // desenhar AQUI caminho do pai com o atual !!! if(atual = 0,0 , nao desenha)
+
+            // definindo direções possiveis para celulas visinhas
             // norte
             std::pair<int, int> norte_do_atual = {atual.first - 1, atual.second};
             // sul
@@ -125,22 +168,99 @@ void construir_Labirinto()
             // oeste
             std::pair<int, int> oeste_do_atual = {atual.first, atual.second - 1};
 
-            /*
-                para facilitar as operações com rng e listas vou definir que
-                :
-                    0 = norte
-                    1 = sul
-                    2 = leste
-                    3 = oeste
-            */
+
+            // vetor de celulas visinhas que vão poder entrar na pilha
+            std::vector<std::pair<int, int>> vetor_explorados;
 
             // validando movimentos com IF
+            /*
+                verifico se os movimentos são possiveis,
+                se forem, verifico se a celula do movimenta ainda não foi visitada,
+
+                marco a celula como explorada, lembrando que explorada não significa visitada
+
+                se não foi visitada, e marco o pai dela como atual para uma possivel próxima interação
+                esse pai pode mudar conforme o loop
+
+
+                verifico tbm se o pai do atual é igual umas das direções , mesmo que ele não entre na pilha
+                essa é a hora que caso o pai do atual seja de uma das direções, ele vai marcar um caminho para
+                norte ou sul ou leste ou oeste do atual
+                tbm faz isso com o pai só que pra direção oposta
+                ex : se atual tem caminho para o pai no norte, o pai do atual tem caaminho para o atual pelo sul 
+
+            */
+            if (norte_do_atual.first >= 0 && norte_do_atual.second >= 0 && norte_do_atual.first < dim_matriz && norte_do_atual.second < dim_matriz)
+            {
+                if (matriz_labirinto[norte_do_atual.first][norte_do_atual.second].visitado == false)
+                {
+                    matriz_labirinto[norte_do_atual.first][norte_do_atual.second].explorado = true;
+                    matriz_labirinto[norte_do_atual.first][norte_do_atual.second].pai_cordenadas = atual;
+                    vetor_explorados.push_back(norte_do_atual);
+                }
+                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == norte_do_atual){
+                    matriz_labirinto[atual.first][atual.second].norte = 1;
+                    matriz_labirinto[pai_do_atual.first][pai_do_atual.second].sul = 1;
+                }
+            }
+            if (sul_do_atual.first >= 0 && sul_do_atual.second >= 0 && sul_do_atual.first < dim_matriz && sul_do_atual.second < dim_matriz)
+            {
+                if (matriz_labirinto[sul_do_atual.first][sul_do_atual.second].visitado == false)
+                {
+                    matriz_labirinto[sul_do_atual.first][sul_do_atual.second].explorado = true;
+                    matriz_labirinto[sul_do_atual.first][sul_do_atual.second].pai_cordenadas = atual;
+                    vetor_explorados.push_back(sul_do_atual);
+                }
+                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == sul_do_atual){
+                    matriz_labirinto[atual.first][atual.second].sul = 1;
+                    matriz_labirinto[pai_do_atual.first][pai_do_atual.second].norte = 1;
+                }
+            }
+            if (leste_do_atual.first >= 0 && leste_do_atual.second >= 0 && leste_do_atual.first < dim_matriz && leste_do_atual.second < dim_matriz)
+            {
+                if (matriz_labirinto[leste_do_atual.first][leste_do_atual.second].visitado == false)
+                {
+                    matriz_labirinto[leste_do_atual.first][leste_do_atual.second].explorado = true;
+                    matriz_labirinto[leste_do_atual.first][leste_do_atual.second].pai_cordenadas = atual;
+                    vetor_explorados.push_back(leste_do_atual);
+                }
+                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == leste_do_atual){
+                    matriz_labirinto[atual.first][atual.second].leste = 1;
+                    matriz_labirinto[pai_do_atual.first][pai_do_atual.second].oeste = 1;
+                }
+            }
+            if (oeste_do_atual.first >= 0 && oeste_do_atual.second >= 0 && oeste_do_atual.first < dim_matriz && oeste_do_atual.second < dim_matriz)
+            {
+                if (matriz_labirinto[oeste_do_atual.first][oeste_do_atual.second].visitado == false)
+                {
+                    matriz_labirinto[oeste_do_atual.first][oeste_do_atual.second].explorado = true;
+                    matriz_labirinto[oeste_do_atual.first][oeste_do_atual.second].pai_cordenadas = atual;
+                    vetor_explorados.push_back(oeste_do_atual);
+                }
+                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == oeste_do_atual){
+                    matriz_labirinto[atual.first][atual.second].oeste = 1;
+                    matriz_labirinto[pai_do_atual.first][pai_do_atual.second].leste = 1;
+                }
+            }
+
+            // Embaralha o vetor de explorados
+            std::shuffle(vetor_explorados.begin(), vetor_explorados.end(), gerador);
+
+            // Transfere os elementos do vetor para a pilha
+            for (auto it = vetor_explorados.rbegin(); it != vetor_explorados.rend(); ++it)
+            {
+                pilha.push(*it); // Insere os elementos na pilha
+            }
         }
     }
 }
 
+/* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^CRIAR LABIRINTO^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+
 int main(int argc, char *argv[])
 {
+    construir_Labirinto();
 
     // Criando a janela
     SDL_Window *janela = SDL_CreateWindow(
@@ -214,6 +334,7 @@ int main(int argc, char *argv[])
 
     // encerra a SDL e libera todos os recursos que ela usou
     SDL_Quit();
+
 
     return 0;
 }
