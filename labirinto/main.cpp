@@ -123,7 +123,7 @@ void desenharGrids(SDL_Renderer *renderizador, int rect_size, int offsetX, int o
 }
 
 // Não me pergunte como isso ta funcionando !!!!! , odioooo , fiquei 3 horas nessa porcaria >:(   )
-//  essa função desenha denovo o quadrado
+//  essa função desenha denovo o fundo do quadrado  + deslocamento pra parecer que abriu uma parede
 void desenhar_deslocamento(SDL_Renderer *renderizador, int offsetX, int offsetY, int x, int y, int tamanho, int direcao)
 {
 
@@ -530,3 +530,5 @@ SDL2 = " https://github.com/libsdl-org/SDL/releases " // baixei a versão 2.30.7
 
 // esse projeto não esta otimizado ainda !!
 */
+
+//g++ -I src/include -L src/lib -o labirinto main.cpp -lmingw32 -lSDL2main -lSDL2
