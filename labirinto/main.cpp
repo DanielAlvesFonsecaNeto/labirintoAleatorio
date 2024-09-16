@@ -9,7 +9,8 @@
 /* ---------------------------------CORES----------------------------------- */
 
 // cor do fundo
-SDL_Color cor_fundo = {120, 120, 180, 255}; // meio azul
+//SDL_Color cor_fundo = {120, 120, 180, 255}; // meio azul
+SDL_Color cor_fundo = {20, 20, 20, 255};
 // cor da parede
 SDL_Color cor_parede = {20, 20, 20, 255}; // quase preto
 // cor do caminho
@@ -20,7 +21,7 @@ SDL_Color cor_caminho = {130, 130, 160, 255}; // quase branco cinza azulado
 /* ---------------------------------VARIAVEIS E ESTRTURAS GLOBAIS----------------------------------- */
 
 // tamanho da janela
-const int Janela_L = 720;
+const int Janela_L = 1280;
 const int Janela_A = 720;
 
 // quantas celulas ^2 tem a matriz, nxn  // padrao = 23
@@ -54,11 +55,9 @@ struct labirinto_celula
 };
 
 // matriz do labirinto, essa é a estrura que vai ser processada e armazenar o labirinto
-std::vector<std::vector<labirinto_celula>> matriz_labirinto(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
+// std::vector<std::vector<labirinto_celula>> matriz_labirinto(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^VARIAVEIS E ESTRTURAS GLOBAIS^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
-
 
 /* ---------------------------------FUNÇÕES PARA DESENHAR COISAS NA TELA----------------------------------- */
 
@@ -104,19 +103,78 @@ void desenharGrids(SDL_Renderer *renderizador, int rect_size, int offsetX, int o
     SDL_RenderPresent(renderizador);
 }
 
-void desenharQuebraParede(){
-    
+// Não me pergunte como isso ta funcionando !!!!! , odioooo , fiquei 3 horas nessa porcaria >:(   )
+//  essa função desenha denovo o quadrado
+void desenhar_deslocamento(SDL_Renderer *renderizador, int offsetX, int offsetY, int x, int y, int tamanho, int direcao)
+{
+
+    /*
+        direcao = 0 ==> norte
+        direcao = 1 ==> sul
+        direcao = 2 ==> leste
+        direcao = 3 ==> oeste
+    */
+
+    // Calcula o tamanho do quadrado menor
+    int tamanhoMenor = tamanho * (1 - (espessura_parede * 2));
+
+    // Calcula a posição para centralizar o quadrado menor no quadrado maior
+    int xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2;
+    int yMenor = offsetY + y + (tamanho - tamanhoMenor) / 2;
+
+    // Desenhar o quadrado menor
+    SDL_Rect quadradoMenor = {xMenor, yMenor, tamanhoMenor, tamanhoMenor};
+    SDL_SetRenderDrawColor(renderizador, cor_caminho.r, cor_caminho.g, cor_caminho.b, cor_caminho.a); // azul
+    SDL_RenderFillRect(renderizador, &quadradoMenor);
+
+
+    if (direcao == 0)
+    {
+        // deslocamento pro norte
+        xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2;
+        yMenor = offsetY + y + (tamanho - tamanhoMenor) / 2 + tamanhoMenor / -2 - tamanho * espessura_parede;
+    }
+    if (direcao == 1)
+    {
+        // deslocamento pro sul
+        xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2;
+        yMenor = offsetY + y + (tamanho - tamanhoMenor) / 2 + tamanhoMenor / 2 + tamanho * espessura_parede;
+    }
+    if (direcao == 2)
+    {
+        // deslocamento pro leste
+        xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2 + tamanhoMenor / 2 + tamanho * espessura_parede;
+        yMenor = offsetY + y + (tamanho - tamanhoMenor) / 2;
+    }
+    if (direcao == 3)
+    {
+        // deslocamento pro oeste
+        xMenor = offsetX + x + (tamanho - tamanhoMenor) / 2 + tamanhoMenor / -2 - tamanho * espessura_parede;
+        yMenor = offsetY + y + (tamanho - tamanhoMenor) / 2;
+    }
+
+    // Desenhar o quadrado menor
+    SDL_Rect quadradoDeslocado = {xMenor, yMenor, tamanhoMenor, tamanhoMenor};
+    SDL_SetRenderDrawColor(renderizador, cor_caminho.r, cor_caminho.g, cor_caminho.b, cor_caminho.a); // azul
+    SDL_RenderFillRect(renderizador, &quadradoDeslocado);
 }
 
+void desenharQuebraParede(SDL_Renderer *renderizador, int rect_size, int linha, int coluna, int offsetX, int offsetY, int direcao)
+{
+
+    int x = offsetX + coluna * rect_size;
+    int y = offsetY + linha * rect_size;
+
+    desenhar_deslocamento(renderizador, x, y, 0, 0, rect_size, direcao);
+    SDL_RenderPresent(renderizador);
+}
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^FUNÇÕES PARA DESENHAR COISAS NA TELA^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
-
 
 /* ---------------------------------CRIAR LABIRINTO----------------------------------- */
 
 /* função que constroi o labirinto e tambem desenha */
-void construir_Labirinto()
+void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labirinto, SDL_Renderer *renderizador, int rect_size, int offsetX, int offsetY)
 {
 
     srand(time(nullptr));
@@ -126,7 +184,7 @@ void construir_Labirinto()
     std::stack<std::pair<int, int>> pilha;
     pilha.push({0, 0}); // começa a geração do labirinto a partir da celula 0,0 , a primeira
     matriz_labirinto[0][0].explorado = true;
-    matriz_labirinto[0][0].norte = 1;               // seria o caminho pra saida do labirinto
+    matriz_labirinto[0][0].norte = 1;                // seria o caminho pra saida do labirinto
     matriz_labirinto[0][0].pai_cordenadas = {-1, 0}; // ele mesmo
 
     while (!pilha.empty() && continuar_loop)
@@ -139,7 +197,7 @@ void construir_Labirinto()
         if (matriz_labirinto[atual.first][atual.second].visitado == false)
         {
 
-            std::cout<<atual.first<<' '<<atual.second<<'\n';
+            //std::cout << atual.first << ' ' << atual.second << '\n';
 
             // marca esse atual como visitado para ele não poder ser visitado de novo
             matriz_labirinto[atual.first][atual.second].visitado = true;
@@ -150,7 +208,8 @@ void construir_Labirinto()
             // referencia do pai
             std::pair<int, int> pai_do_atual = matriz_labirinto[atual.first][atual.second].pai_cordenadas;
             // coloca o pai na lista de ligacoes
-            if(atual.first != 0 || atual.second != 0){ // caso não seja o {0,0}
+            if (atual.first != 0 || atual.second != 0)
+            { // caso não seja o {0,0}
                 matriz_labirinto[atual.first][atual.second].ligacoes.push_back(pai_do_atual);
                 // coloca o atual na lista de ligacoes do pai
                 matriz_labirinto[pai_do_atual.first][pai_do_atual.second].ligacoes.push_back(atual);
@@ -167,7 +226,6 @@ void construir_Labirinto()
             std::pair<int, int> leste_do_atual = {atual.first, atual.second + 1};
             // oeste
             std::pair<int, int> oeste_do_atual = {atual.first, atual.second - 1};
-
 
             // vetor de celulas visinhas que vão poder entrar na pilha
             std::vector<std::pair<int, int>> vetor_explorados;
@@ -187,7 +245,7 @@ void construir_Labirinto()
                 essa é a hora que caso o pai do atual seja de uma das direções, ele vai marcar um caminho para
                 norte ou sul ou leste ou oeste do atual
                 tbm faz isso com o pai só que pra direção oposta
-                ex : se atual tem caminho para o pai no norte, o pai do atual tem caaminho para o atual pelo sul 
+                ex : se atual tem caminho para o pai no norte, o pai do atual tem caaminho para o atual pelo sul
 
             */
             if (norte_do_atual.first >= 0 && norte_do_atual.second >= 0 && norte_do_atual.first < dim_matriz && norte_do_atual.second < dim_matriz)
@@ -198,9 +256,11 @@ void construir_Labirinto()
                     matriz_labirinto[norte_do_atual.first][norte_do_atual.second].pai_cordenadas = atual;
                     vetor_explorados.push_back(norte_do_atual);
                 }
-                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == norte_do_atual){
+                if (matriz_labirinto[atual.first][atual.second].pai_cordenadas == norte_do_atual)
+                {
                     matriz_labirinto[atual.first][atual.second].norte = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].sul = 1;
+                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,0);
                 }
             }
             if (sul_do_atual.first >= 0 && sul_do_atual.second >= 0 && sul_do_atual.first < dim_matriz && sul_do_atual.second < dim_matriz)
@@ -211,9 +271,11 @@ void construir_Labirinto()
                     matriz_labirinto[sul_do_atual.first][sul_do_atual.second].pai_cordenadas = atual;
                     vetor_explorados.push_back(sul_do_atual);
                 }
-                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == sul_do_atual){
+                if (matriz_labirinto[atual.first][atual.second].pai_cordenadas == sul_do_atual)
+                {
                     matriz_labirinto[atual.first][atual.second].sul = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].norte = 1;
+                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,1);
                 }
             }
             if (leste_do_atual.first >= 0 && leste_do_atual.second >= 0 && leste_do_atual.first < dim_matriz && leste_do_atual.second < dim_matriz)
@@ -224,9 +286,11 @@ void construir_Labirinto()
                     matriz_labirinto[leste_do_atual.first][leste_do_atual.second].pai_cordenadas = atual;
                     vetor_explorados.push_back(leste_do_atual);
                 }
-                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == leste_do_atual){
+                if (matriz_labirinto[atual.first][atual.second].pai_cordenadas == leste_do_atual)
+                {
                     matriz_labirinto[atual.first][atual.second].leste = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].oeste = 1;
+                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,2);
                 }
             }
             if (oeste_do_atual.first >= 0 && oeste_do_atual.second >= 0 && oeste_do_atual.first < dim_matriz && oeste_do_atual.second < dim_matriz)
@@ -237,9 +301,11 @@ void construir_Labirinto()
                     matriz_labirinto[oeste_do_atual.first][oeste_do_atual.second].pai_cordenadas = atual;
                     vetor_explorados.push_back(oeste_do_atual);
                 }
-                if(matriz_labirinto[atual.first][atual.second].pai_cordenadas == oeste_do_atual){
+                if (matriz_labirinto[atual.first][atual.second].pai_cordenadas == oeste_do_atual)
+                {
                     matriz_labirinto[atual.first][atual.second].oeste = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].leste = 1;
+                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,3);
                 }
             }
 
@@ -257,10 +323,9 @@ void construir_Labirinto()
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^CRIAR LABIRINTO^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-
 int main(int argc, char *argv[])
 {
-    construir_Labirinto();
+    std::vector<std::vector<labirinto_celula>> matriz_labirinto(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
 
     // Criando a janela
     SDL_Window *janela = SDL_CreateWindow(
@@ -298,11 +363,14 @@ int main(int argc, char *argv[])
     /*
         Aqui vou definir a area central, tudo vai ser deshando nela!!
     */
-
     // Calcula o tamanho do quadrado e o offset para centralizar
     int rect_size = std::min(Janela_L / dim_matriz, Janela_A / dim_matriz); // Menor valor entre largura/n e altura/n
     int offsetX = (Janela_L - (rect_size * dim_matriz)) / 2;                // Offset X para centralizar
     int offsetY = (Janela_A - (rect_size * dim_matriz)) / 2;                // Offset Y para centralizar
+
+    desenharGrids(renderizador_1, rect_size, offsetX, offsetY);
+
+    construir_Labirinto(matriz_labirinto, renderizador_1, rect_size, offsetX, offsetY);
 
     // estrutura que armazena todos os eventos capturados (mouse, teclado, fechar janela, etc..)
     SDL_Event evento;
@@ -326,7 +394,9 @@ int main(int argc, char *argv[])
             }
         }
 
-        desenharGrids(renderizador_1, rect_size, offsetX, offsetY);
+        // desenharGrids(renderizador_1, rect_size, offsetX, offsetY);
+
+        // desenharQuebraParede(renderizador_1,rect_size,3,2,offsetX,offsetY,rect_size);
     }
 
     // destroi janela e libera recursos alocados para ela
@@ -334,7 +404,6 @@ int main(int argc, char *argv[])
 
     // encerra a SDL e libera todos os recursos que ela usou
     SDL_Quit();
-
 
     return 0;
 }
