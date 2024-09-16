@@ -17,8 +17,12 @@ SDL_Color cor_fundo = {20, 20, 20, 255}; // mesma cor da parede
 SDL_Color cor_parede = {20, 20, 20, 255}; // quase preto
 // cor do caminho
 SDL_Color cor_caminho = {130, 130, 160, 255}; // quase branco cinza azulado
+// cor da grid fundo 
+SDL_Color cor_grid_fundo = {50, 50, 50, 255}; // quase branco cinza azulado
+// cor da malha da gird
+SDL_Color cor_grid_malha = {20, 20, 20, 255}; // quase preto
 // cor do quadradoMenorCaminho
-SDL_Color cor_menorCam = {0, 200, 0, 50}; // verde meio transparente
+SDL_Color cor_menorCam = {20, 20, 20, 120}; // verde meio transparente
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^CORES^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
@@ -84,7 +88,7 @@ void desenharQuadradoComOutroDentro(SDL_Renderer *renderizador, int offsetX, int
 {
     // Desenhar o quadrado maior, levando em consideração o offset
     SDL_Rect quadradoMaior = {offsetX, offsetY, tamanho, tamanho};
-    SDL_SetRenderDrawColor(renderizador, cor_parede.r, cor_parede.g, cor_parede.b, cor_parede.a); // verde
+    SDL_SetRenderDrawColor(renderizador, cor_grid_malha.r, cor_grid_malha.g, cor_grid_malha.b, cor_grid_malha.a); // verde
     SDL_RenderFillRect(renderizador, &quadradoMaior);
 
     // Calcula o tamanho do quadrado menor
@@ -96,7 +100,7 @@ void desenharQuadradoComOutroDentro(SDL_Renderer *renderizador, int offsetX, int
 
     // Desenhar o quadrado menor
     SDL_Rect quadradoMenor = {xMenor, yMenor, tamanhoMenor, tamanhoMenor};
-    SDL_SetRenderDrawColor(renderizador, cor_caminho.r, cor_caminho.g, cor_caminho.b, cor_caminho.a); // azul
+    SDL_SetRenderDrawColor(renderizador, cor_grid_fundo.r, cor_grid_fundo.g, cor_grid_fundo.b, cor_grid_fundo.a); // azul
     SDL_RenderFillRect(renderizador, &quadradoMenor);
 }
 
@@ -233,9 +237,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
     matriz_labirinto[0][0].norte = 1;                // seria o caminho pra saida do labirinto
     matriz_labirinto[0][0].pai_cordenadas = {-1, 0}; // ele mesmo
 
+    // desenha o quadrado 0 , 0
+    desenharQuebraParede(renderizador, rect_size, 0, 0, offsetX, offsetY, -1);
+
     while (!pilha.empty() && continuar_loop)
     {
-
         // verifica se teve evento
         if (SDL_PollEvent(&evento))
         {
@@ -245,11 +251,10 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
             {
                 // destroi janela e libera recursos alocados para ela
                 SDL_DestroyWindow(janela);
-
                 // encerra a SDL e libera todos os recursos que ela usou
                 SDL_Quit();
-                continuar_loop = false;
-                continue;
+                // força a paragem do programa 
+                exit(0);
             }
             if (evento.type == SDL_KEYDOWN) // se a tecla ta precionada qualquer TECLA
             {
