@@ -1,3 +1,5 @@
+// criado por Daniel 
+
 #include <SDL2/SDL.h>
 #include <iostream>
 #include <vector>
@@ -9,26 +11,39 @@
 /* ---------------------------------CORES----------------------------------- */
 
 // cor do fundo
-//SDL_Color cor_fundo = {120, 120, 180, 255}; // meio azul
-SDL_Color cor_fundo = {20, 20, 20, 255};
+// SDL_Color cor_fundo = {120, 120, 180, 255}; // meio azul
+SDL_Color cor_fundo = {20, 20, 20, 255}; // mesma cor da parede
 // cor da parede
 SDL_Color cor_parede = {20, 20, 20, 255}; // quase preto
 // cor do caminho
 SDL_Color cor_caminho = {130, 130, 160, 255}; // quase branco cinza azulado
+// cor do quadradoMenorCaminho
+SDL_Color cor_menorCam = {0, 200, 0, 50}; // verde meio transparente
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^CORES^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 /* ---------------------------------VARIAVEIS E ESTRTURAS GLOBAIS----------------------------------- */
 
 // tamanho da janela
-const int Janela_L = 1280;
-const int Janela_A = 720;
+const int Janela_L = 800;
+const int Janela_A = 800;
 
 // quantas celulas ^2 tem a matriz, nxn  // padrao = 23
 const int dim_matriz = 23;
 
 // quantos porcentos a parede em relação ao tamanho da celula
-const float espessura_parede = 0.05;
+const float espessura_parede = 0.1;
+
+const int delay = 10;
+
+// Criando a janela
+SDL_Window *janela = SDL_CreateWindow(
+    "Labirinto",             // nome da janela
+    SDL_WINDOWPOS_UNDEFINED, // posi X janela
+    SDL_WINDOWPOS_UNDEFINED, // posi Y janela
+    Janela_L, Janela_A,      // largura e altura da janela
+    SDL_WINDOW_ALLOW_HIGHDPI // flag pra permitir alta DPI
+);
 
 // gerando sementes aleatorias para o suffle
 std::random_device randow_device;
@@ -42,16 +57,16 @@ struct labirinto_celula
     // verificação se ja foi visitado para poder entrar na pilha ou não
     bool visitado = false;
     // cordenadas caso precise
-    std::pair<int, int> cordenadas;
+    std::pair<int, int> cordenadas = {0, 0};
     // quem era o pai, util para achar menor caminho
-    std::pair<int, int> pai_cordenadas;
+    std::pair<int, int> pai_cordenadas = {0, 0};
     // tem caminho ? 0 = não, 1 = sim
     int norte = 0;
     int sul = 0;
     int leste = 0;
     int oeste = 0;
     // caso precise para manipulações melhores do grafo
-    std::vector<std::pair<int, int>> ligacoes;
+    std::vector<std::pair<int, int>> ligacoes = {};
 };
 
 // matriz do labirinto, essa é a estrura que vai ser processada e armazenar o labirinto
@@ -127,7 +142,6 @@ void desenhar_deslocamento(SDL_Renderer *renderizador, int offsetX, int offsetY,
     SDL_SetRenderDrawColor(renderizador, cor_caminho.r, cor_caminho.g, cor_caminho.b, cor_caminho.a); // azul
     SDL_RenderFillRect(renderizador, &quadradoMenor);
 
-
     if (direcao == 0)
     {
         // deslocamento pro norte
@@ -169,6 +183,36 @@ void desenharQuebraParede(SDL_Renderer *renderizador, int rect_size, int linha, 
     SDL_RenderPresent(renderizador);
 }
 
+void desenharColorirQuadrado(SDL_Renderer *renderizador, int offsetX, int offsetY, int tamanho)
+{
+    // Habilitar blending para considerar o canal alfa (transparência)
+    SDL_SetRenderDrawBlendMode(renderizador, SDL_BLENDMODE_BLEND);
+    // Desenhar o quadrado maior, levando em consideração o offset
+    SDL_Rect quadradoMaior = {offsetX, offsetY, tamanho, tamanho};
+    SDL_SetRenderDrawColor(renderizador, cor_menorCam.r, cor_menorCam.g, cor_menorCam.b, cor_menorCam.a); 
+    SDL_RenderFillRect(renderizador, &quadradoMaior);
+}
+
+void desenharMenorCaminho(std::vector<std::vector<labirinto_celula>> &matriz_labirinto, SDL_Renderer *renderizador, int rect_size, int linha, int coluna, int offsetX, int offsetY, int direcao)
+{
+    int x = offsetX + coluna * rect_size;
+    int y = offsetY + linha * rect_size;
+
+    labirinto_celula atual = matriz_labirinto[dim_matriz - 1][dim_matriz - 1];
+    while (atual.cordenadas.first != 0 || atual.cordenadas.second != 0)
+    {
+        x = offsetX + atual.cordenadas.second * rect_size; // sim x com second e y com fisrt
+        y = offsetY + atual.cordenadas.first * rect_size;
+
+        desenharColorirQuadrado(renderizador, x, y, rect_size);
+        SDL_RenderPresent(renderizador);
+        atual = matriz_labirinto[atual.pai_cordenadas.first][atual.pai_cordenadas.second];
+    }
+
+    // desenhar pra posi 0,0
+    desenharColorirQuadrado(renderizador, offsetX, offsetY, rect_size);
+    SDL_RenderPresent(renderizador);
+}
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^FUNÇÕES PARA DESENHAR COISAS NA TELA^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 /* ---------------------------------CRIAR LABIRINTO----------------------------------- */
@@ -180,6 +224,8 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
     srand(time(nullptr));
 
     bool continuar_loop = true;
+    bool usar_delay = true;
+    SDL_Event evento;
 
     std::stack<std::pair<int, int>> pilha;
     pilha.push({0, 0}); // começa a geração do labirinto a partir da celula 0,0 , a primeira
@@ -189,6 +235,32 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
 
     while (!pilha.empty() && continuar_loop)
     {
+
+        // verifica se teve evento
+        if (SDL_PollEvent(&evento))
+        {
+
+            // se o evento foi de fechar a janela
+            if (SDL_QUIT == evento.type)
+            {
+                // destroi janela e libera recursos alocados para ela
+                SDL_DestroyWindow(janela);
+
+                // encerra a SDL e libera todos os recursos que ela usou
+                SDL_Quit();
+                continuar_loop = false;
+                continue;
+            }
+            if (evento.type == SDL_KEYDOWN) // se a tecla ta precionada qualquer TECLA
+            {
+                // std::cout<<"tecla precionada"<<std::endl;
+                if (evento.key.keysym.sym == SDLK_SPACE)
+                {
+                    usar_delay = false;
+                }
+            }
+        }
+
         // desempilha da pilha, vamos trabalhar com o atual
         std::pair<int, int> atual = pilha.top();
         pilha.pop();
@@ -197,7 +269,7 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
         if (matriz_labirinto[atual.first][atual.second].visitado == false)
         {
 
-            //std::cout << atual.first << ' ' << atual.second << '\n';
+            // std::cout << atual.first << ' ' << atual.second << '\n';
 
             // marca esse atual como visitado para ele não poder ser visitado de novo
             matriz_labirinto[atual.first][atual.second].visitado = true;
@@ -247,6 +319,9 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 tbm faz isso com o pai só que pra direção oposta
                 ex : se atual tem caminho para o pai no norte, o pai do atual tem caaminho para o atual pelo sul
 
+                alem disso é aqui que desenho a abertura de caminho com desenharQuebraParede
+                eu desenho a parede do caminho quando eu descubro quem é o pai
+
             */
             if (norte_do_atual.first >= 0 && norte_do_atual.second >= 0 && norte_do_atual.first < dim_matriz && norte_do_atual.second < dim_matriz)
             {
@@ -260,7 +335,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 {
                     matriz_labirinto[atual.first][atual.second].norte = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].sul = 1;
-                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,0);
+                    desenharQuebraParede(renderizador, rect_size, atual.first, atual.second, offsetX, offsetY, 0);
+                    if (usar_delay)
+                    {
+                        SDL_Delay(delay);
+                    }
                 }
             }
             if (sul_do_atual.first >= 0 && sul_do_atual.second >= 0 && sul_do_atual.first < dim_matriz && sul_do_atual.second < dim_matriz)
@@ -275,7 +354,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 {
                     matriz_labirinto[atual.first][atual.second].sul = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].norte = 1;
-                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,1);
+                    desenharQuebraParede(renderizador, rect_size, atual.first, atual.second, offsetX, offsetY, 1);
+                    if (usar_delay)
+                    {
+                        SDL_Delay(delay);
+                    }
                 }
             }
             if (leste_do_atual.first >= 0 && leste_do_atual.second >= 0 && leste_do_atual.first < dim_matriz && leste_do_atual.second < dim_matriz)
@@ -290,7 +373,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 {
                     matriz_labirinto[atual.first][atual.second].leste = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].oeste = 1;
-                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,2);
+                    desenharQuebraParede(renderizador, rect_size, atual.first, atual.second, offsetX, offsetY, 2);
+                    if (usar_delay)
+                    {
+                        SDL_Delay(delay);
+                    }
                 }
             }
             if (oeste_do_atual.first >= 0 && oeste_do_atual.second >= 0 && oeste_do_atual.first < dim_matriz && oeste_do_atual.second < dim_matriz)
@@ -305,7 +392,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 {
                     matriz_labirinto[atual.first][atual.second].oeste = 1;
                     matriz_labirinto[pai_do_atual.first][pai_do_atual.second].leste = 1;
-                    desenharQuebraParede(renderizador,rect_size,atual.first,atual.second,offsetX,offsetY,3);
+                    desenharQuebraParede(renderizador, rect_size, atual.first, atual.second, offsetX, offsetY, 3);
+                    if (usar_delay)
+                    {
+                        SDL_Delay(delay);
+                    }
                 }
             }
 
@@ -323,18 +414,11 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^CRIAR LABIRINTO^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
+/* --------------------------------------------MAIN----------------------------------- */
+
 int main(int argc, char *argv[])
 {
     std::vector<std::vector<labirinto_celula>> matriz_labirinto(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
-
-    // Criando a janela
-    SDL_Window *janela = SDL_CreateWindow(
-        "Labirinto",             // nome da janela
-        SDL_WINDOWPOS_UNDEFINED, // posi X janela
-        SDL_WINDOWPOS_UNDEFINED, // posi Y janela
-        Janela_L, Janela_A,      // largura e altura da janela
-        SDL_WINDOW_ALLOW_HIGHDPI // flag pra permitir alta DPI
-    );
 
     // verificando se a janela foi criada corretamente
     if (janela == NULL)
@@ -377,6 +461,7 @@ int main(int argc, char *argv[])
 
     // controle do loop
     bool continuar_loop = true;
+    bool jaDesenhoMC = false; // uso pra não spmar o desenho do menor caminho por causa da captura de eventos frenetica quando aperta S
 
     // continua o loop inifitamente até que um evento faça parar
     while (continuar_loop)
@@ -391,6 +476,27 @@ int main(int argc, char *argv[])
             {
                 continuar_loop = false;
                 continue;
+            }
+            if (evento.type == SDL_KEYDOWN) // se a tecla ta precionada qualquer TECLA
+            {
+                // std::cout<<"tecla precionada"<<std::endl;
+                if (evento.key.keysym.sym == SDLK_r)
+                {
+                    SDL_SetRenderDrawColor(renderizador_1, cor_fundo.r, cor_fundo.g, cor_fundo.b, cor_fundo.a);
+                    SDL_RenderClear(renderizador_1);
+                    SDL_RenderPresent(renderizador_1);
+
+                    matriz_labirinto = std::vector<std::vector<labirinto_celula>>(dim_matriz, std::vector<labirinto_celula>(dim_matriz));
+                    desenharGrids(renderizador_1, rect_size, offsetX, offsetY);
+                    construir_Labirinto(matriz_labirinto, renderizador_1, rect_size, offsetX, offsetY);
+                    jaDesenhoMC = false;
+                }
+                if (evento.key.keysym.sym == SDLK_s)
+                {
+                    if (!jaDesenhoMC) // se jaDsenhoMC == false
+                        desenharMenorCaminho(matriz_labirinto, renderizador_1, rect_size, 0, 0, offsetX, offsetY, 0);
+                    jaDesenhoMC = true;
+                }
             }
         }
 
@@ -407,3 +513,15 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+/* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^MAIN^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+/*
+dgite "make" no terminal, precisa ter make instalado
+esse projeto esta usando SDL2 64 bits e MinGW 64 bits
+é para sistemas WINDOWS 64 bits
+
+local de downloads :
+minGW = " https://github.com/skeeto/w64devkit/releases " baixei a versão 2.0.0 => w64devkit-x64-2.0.0.exe
+SDL2 = " https://github.com/libsdl-org/SDL/releases " // baixei a versão 2.30.7 => SDL2-devel-2.30.7-mingw.zip
+
+// esse projeto não esta otimizado ainda !!
+*/
