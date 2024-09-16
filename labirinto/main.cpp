@@ -225,7 +225,7 @@ void desenharMenorCaminho(std::vector<std::vector<labirinto_celula>> &matriz_lab
 void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labirinto, SDL_Renderer *renderizador, int rect_size, int offsetX, int offsetY)
 {
 
-    srand(time(nullptr));
+    //srand(time(nullptr));
 
     bool continuar_loop = true;
     bool usar_delay = true;
@@ -291,8 +291,6 @@ void construir_Labirinto(std::vector<std::vector<labirinto_celula>> &matriz_labi
                 // coloca o atual na lista de ligacoes do pai
                 matriz_labirinto[pai_do_atual.first][pai_do_atual.second].ligacoes.push_back(atual);
             }
-
-            // desenhar AQUI caminho do pai com o atual !!! if(atual = 0,0 , nao desenha)
 
             // definindo direções possiveis para celulas visinhas
             // norte
